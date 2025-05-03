@@ -1,0 +1,15 @@
+---
+description: 
+globs: packages/core/**
+alwaysApply: false
+---
+- Always use the `logger` from `../utils/logger` for logging (never `console.log`).
+- Use severity levels like `debug`, `info`, `warn`, `error`, and `success` appropriately.
+- Log important actions, conditions, and results — especially errors and decisions.
+- Use color helpers like `logger.cyan` for clarity in logs.
+- Example format:
+
+```ts
+logger.debug(\`Calculating total bets for match \${logger.cyan(match.id)}\`);
+logger.success(\`Created match \${logger.cyan(newMatch.id)}\`);
+```

@@ -1,0 +1,15 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+
+- Organize code within a file into logical sections.
+- When appropriate, use separator comment blocks like
+  `
+    // ===========================================
+    // Field Resolvers
+    // ===========================================
+  ` to visually group related code.
+- If the file grows too large or mixes unrelated logic, consider suggesting a file split with a better structure.
+- Follow common organizational patterns in the codebase where possible.

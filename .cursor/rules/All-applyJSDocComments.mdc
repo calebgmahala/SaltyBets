@@ -1,0 +1,9 @@
+---
+description: Always add JSDoc comments for functions
+globs: ["**/*.ts", "**/*.js"]
+alwaysApply: true
+---
+
+- Always write a complete JSDoc comment for every function or method, including parameters, return types, and purpose.
+- Use `@param`, `@returns`, and other appropriate JSDoc tags.
+- Keep descriptions concise but meaningful.
