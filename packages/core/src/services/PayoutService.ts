@@ -2,17 +2,9 @@ import { AppDataSource } from "../data-source";
 import { Bet } from "../entities/Bet";
 import { User } from "../entities/User";
 import { FighterColor } from "../types/FighterColor";
-import { RedisService } from "./RedisService";
 
 export class PayoutService {
   private static instance: PayoutService;
-  private redis: RedisService;
-  private betRepository = AppDataSource.getRepository(Bet);
-  private userRepository = AppDataSource.getRepository(User);
-
-  private constructor() {
-    this.redis = RedisService.getInstance();
-  }
 
   public static getInstance(): PayoutService {
     if (!PayoutService.instance) {

@@ -12,6 +12,7 @@ import { Match } from "../entities/Match";
 import { MatchTotalsDto } from "../dtos/MatchTotalsDto";
 import { readFileSync } from "fs";
 import { join } from "path";
+import { logger } from "../utils/logger";
 
 export class BetService {
   // Singleton instance
@@ -35,7 +36,7 @@ export class BetService {
 
   // Match finalization
   private finalizationTimeouts: Map<string, NodeJS.Timeout> = new Map();
-  private readonly FINALIZATION_DELAY_MS = 45000; // 45 seconds
+  private readonly FINALIZATION_DELAY_MS = 35000; // 45 seconds
 
   // Private constructor for singleton pattern
   private constructor() {
@@ -89,8 +90,14 @@ export class BetService {
     amount: number,
     fighterColor: FighterColor
   ): Promise<boolean> {
+    logger.debug(
+      `Attempting to place bet for user ${logger.cyan(user.id)}: amount=${logger.cyan(amount)}, color=${logger.cyan(fighterColor)}`
+    );
     // Validate bet amount (must be in increments of 5 or 25 cents)
     if (!this.isValidBetAmount(amount)) {
+      logger.warn(
+        `Invalid bet amount ${logger.red(amount)} for user ${logger.cyan(user.id)}. Must be in increments of 5 or 25 cents.`
+      );
       throw new Error(
         "Invalid bet amount. Must be in increments of 5 or 25 cents."
       );
@@ -115,14 +122,26 @@ export class BetService {
       if (result[0] === "err") {
         switch (result[1]) {
           case "INSUFFICIENT_BALANCE":
+            logger.warn(
+              `User ${logger.cyan(user.id)} has insufficient balance to place bet of ${logger.cyan(amount)}.`
+            );
             throw new Error("Insufficient balance");
           default:
+            logger.error(
+              `Unknown error placing bet for user ${logger.cyan(user.id)}: ${logger.red(result[1])}`
+            );
             throw new Error("Unknown error");
         }
       }
 
+      logger.success(
+        `Bet placed successfully for user ${logger.cyan(user.id)}: amount=${logger.cyan(amount)}, color=${logger.cyan(fighterColor)}`
+      );
       return true;
     } catch (error) {
+      logger.error(
+        `Error placing bet for user ${logger.cyan(user.id)}: ${logger.red(error instanceof Error ? error.message : error)}`
+      );
       throw error;
     }
   }
@@ -135,8 +154,14 @@ export class BetService {
    * @throws Error if no bet exists or cancel amount is invalid
    */
   async cancelBet(user: User, amount: number): Promise<boolean> {
+    logger.debug(
+      `Attempting to cancel bet for user ${logger.cyan(user.id)}: amount=${logger.cyan(amount)}`
+    );
     // Validate cancel amount
     if (!this.isValidBetAmount(amount)) {
+      logger.warn(
+        `Invalid cancel amount ${logger.red(amount)} for user ${logger.cyan(user.id)}. Must be in increments of 5 or 25 cents.`
+      );
       throw new Error(
         "Invalid cancel amount. Must be in increments of 5 or 25 cents."
       );
@@ -158,16 +183,31 @@ export class BetService {
       if (result[0] === "err") {
         switch (result[1]) {
           case "NO_BET":
+            logger.warn(
+              `No active bet found to cancel for user ${logger.cyan(user.id)}.`
+            );
             throw new Error("No bet found to cancel");
           case "INSUFFICIENT_BET":
+            logger.warn(
+              `User ${logger.cyan(user.id)} attempted to cancel more than current bet amount.`
+            );
             throw new Error("Cannot cancel more than the current bet amount");
           default:
+            logger.error(
+              `Unknown error canceling bet for user ${logger.cyan(user.id)}: ${logger.red(result[1])}`
+            );
             throw new Error("Unknown error");
         }
       }
 
+      logger.success(
+        `Bet canceled successfully for user ${logger.cyan(user.id)}: amount=${logger.cyan(amount)}`
+      );
       return true;
     } catch (error) {
+      logger.error(
+        `Error canceling bet for user ${logger.cyan(user.id)}: ${logger.red(error instanceof Error ? error.message : error)}`
+      );
       throw error;
     }
   }
@@ -177,9 +217,15 @@ export class BetService {
    * @param matchId - The ID of the match being finalized
    */
   async finalizeBets(matchId: string): Promise<void> {
+    logger.info(
+      `Finalizing bets for match ${logger.cyan(matchId)}`
+    );
     await AppDataSource.transaction(async (manager) => {
       // Get all active bets from Redis
       const keys = await this.redis.getClient().keys(this.getUserBetKey("*"));
+      logger.debug(
+        `Found ${logger.cyan(keys.length)} active bet keys in Redis for match ${logger.cyan(matchId)}`
+      );
       const bets = await Promise.all(
         keys.map(async (key) => {
           const userId = key.split(":")[3]; // Extract userId from key
@@ -191,16 +237,24 @@ export class BetService {
           };
         })
       );
-
+      logger.debug(
+        `Processing ${logger.cyan(bets.length)} bets for match ${logger.cyan(matchId)}`
+      );
       // Create bet records in database and update final balances
       for (const bet of bets) {
         const user = await manager.findOne(User, { where: { id: bet.userId } });
-        if (!user) continue;
-
+        if (!user) {
+          logger.warn(
+            `User ${logger.cyan(bet.userId)} not found in database during finalization for match ${logger.cyan(matchId)}`
+          );
+          continue;
+        }
         // Calculate final balance by subtracting the bet amount from current balance
         user.balance = user.balance - bet.amount;
         await manager.save(user);
-
+        logger.info(
+          `Updated balance for user ${logger.cyan(user.id)}: new balance=${logger.cyan(user.balance)}`
+        );
         // Create bet record
         const betRecord = new Bet();
         betRecord.amount = bet.amount;
@@ -208,29 +262,38 @@ export class BetService {
         betRecord.user = user;
         betRecord.match = manager.create(Match, { id: matchId });
         await manager.save(betRecord);
+        logger.success(
+          `Saved bet record for user ${logger.cyan(user.id)}: amount=${logger.cyan(bet.amount)}, color=${logger.cyan(bet.color)}, match=${logger.cyan(matchId)}`
+        );
       }
-
       // Clear Redis data
       const balanceKeys = bets.map((bet) => this.getUserBalanceKey(bet.userId));
-
       // Only perform Redis deletions if we have keys to delete
       const redisDeletions = [];
-
       if (keys.length > 0) {
+        logger.debug(
+          `Deleting ${logger.cyan(keys.length)} bet keys from Redis for match ${logger.cyan(matchId)}`
+        );
         redisDeletions.push(this.redis.getClient().del(...keys));
       }
-
       if (balanceKeys.length > 0) {
+        logger.debug(
+          `Deleting ${logger.cyan(balanceKeys.length)} balance keys from Redis for match ${logger.cyan(matchId)}`
+        );
         redisDeletions.push(this.redis.getClient().del(...balanceKeys));
       }
-
       // Always clear the match total keys
+      logger.debug(
+        `Clearing match total keys for match ${logger.cyan(matchId)}`
+      );
       redisDeletions.push(
         this.redis.getClient().del(this.getMatchTotalKey(FighterColor.BLUE)),
         this.redis.getClient().del(this.getMatchTotalKey(FighterColor.RED))
       );
-
       await Promise.all(redisDeletions);
+      logger.success(
+        `Finalized bets and cleared Redis for match ${logger.cyan(matchId)}`
+      );
     });
   }
 
@@ -241,11 +304,17 @@ export class BetService {
    * @returns Promise<UserBetDto | null> - The user's bet or null if no active bet
    */
   async getUserBet(userId: string): Promise<Bet | null> {
+    logger.debug(
+      `Fetching user bet for user ${logger.cyan(userId)}`
+    );
     const currentMatch = await this.matchRepository.findOne({
       order: { createdAt: "DESC" },
     });
 
     if (!currentMatch) {
+      logger.info(
+        `No current match found when fetching bet for user ${logger.cyan(userId)}`
+      );
       return null;
     }
 
@@ -256,6 +325,15 @@ export class BetService {
       },
     });
 
+    if (bet) {
+      logger.debug(
+        `Found bet for user ${logger.cyan(userId)} on match ${logger.cyan(currentMatch.id)}: amount=${logger.cyan(bet.amount)}, color=${logger.cyan(bet.fighterColor)}`
+      );
+    } else {
+      logger.info(
+        `No active bet found for user ${logger.cyan(userId)} on match ${logger.cyan(currentMatch.id)}`
+      );
+    }
     return bet;
   }
 
@@ -264,11 +342,15 @@ export class BetService {
    * @returns Promise<MatchTotalsDto> - The current betting totals
    */
   async getMatchTotals(): Promise<MatchTotalsDto> {
+    logger.debug(`Fetching current match totals from Redis`);
     const [blueTotal, redTotal] = await Promise.all([
       this.redis.getClient().get(this.getMatchTotalKey(FighterColor.BLUE)),
       this.redis.getClient().get(this.getMatchTotalKey(FighterColor.RED)),
     ]);
 
+    logger.info(
+      `Current match totals: blue=${logger.cyan(blueTotal || 0)}, red=${logger.cyan(redTotal || 0)}`
+    );
     return {
       blue: parseFloat(blueTotal || "0"),
       red: parseFloat(redTotal || "0"),
@@ -282,8 +364,13 @@ export class BetService {
    * @returns boolean - True if the amount is valid
    */
   private isValidBetAmount(amount: number): boolean {
-    // Check if amount is a positive number in increments of 5 cents
-    return amount > 0 && Math.abs(amount % 0.05) < 0.001;
+    const valid = amount > 0 && Math.abs(amount % 0.05) < 0.001;
+    if (!valid) {
+      logger.debug(
+        `Bet amount validation failed: ${logger.red(amount)}`
+      );
+    }
+    return valid;
   }
 
   /**
@@ -299,9 +386,13 @@ export class BetService {
       currentTotals.blue !== this.lastTotals.blue ||
       currentTotals.red !== this.lastTotals.red
     ) {
+      logger.debug(
+        `Match totals changed or first update. Previous: blue=${logger.cyan(this.lastTotals?.blue ?? 'N/A')}, red=${logger.cyan(this.lastTotals?.red ?? 'N/A')}. Current: blue=${logger.cyan(currentTotals.blue)}, red=${logger.cyan(currentTotals.red)}`
+      );
       this.lastTotals = currentTotals;
       return true;
     }
+    logger.debug(`Match totals unchanged. No update needed.`);
     return false;
   }
 
@@ -314,6 +405,9 @@ export class BetService {
   ): Promise<void> {
     const now = Date.now();
     this.pendingUpdate = true;
+    logger.debug(
+      `Scheduling totals update. Now: ${logger.cyan(now)}, LastUpdate: ${logger.cyan(this.lastUpdateTime)}`
+    );
 
     // If we're within the throttle window, schedule the update
     if (now - this.lastUpdateTime < this.UPDATE_THROTTLE_MS) {
@@ -337,17 +431,26 @@ export class BetService {
   private async processPendingUpdate(
     callback: (totals: MatchTotalsDto) => Promise<void>
   ): Promise<void> {
-    if (!this.pendingUpdate) return;
+    if (!this.pendingUpdate) {
+      logger.debug(`No pending update to process.`);
+      return;
+    }
 
     const shouldUpdate = await this.shouldUpdateTotals();
     if (shouldUpdate) {
       const totals = await this.getMatchTotals();
+      logger.info(
+        `Processing pending totals update: blue=${logger.cyan(totals.blue)}, red=${logger.cyan(totals.red)}`
+      );
       await callback(totals);
     }
 
     this.lastUpdateTime = Date.now();
     this.pendingUpdate = false;
     this.updateTimeout = null;
+    logger.debug(
+      `Processed pending update. LastUpdateTime set to ${logger.cyan(this.lastUpdateTime)}`
+    );
   }
 
   /**
@@ -357,13 +460,19 @@ export class BetService {
   scheduleFinalization(matchId: string): void {
     // Clear any existing timeout for this match
     this.cancelFinalization(matchId);
+    
+    logger.info(
+      `Scheduling automatic bet finalization for match ${logger.cyan(matchId)} in ${logger.cyan(this.FINALIZATION_DELAY_MS / 1000)} seconds.`
+    );
 
     // Set a new timeout
     const timeout = setTimeout(async () => {
       try {
         await this.finalizeBets(matchId);
       } catch (error) {
-        console.error(`Failed to finalize bets for match ${matchId}:`, error);
+        logger.error(
+          `Failed to finalize bets for match ${logger.cyan(matchId)}: ${logger.red(error instanceof Error ? error.message : error)}`
+        );
       } finally {
         this.finalizationTimeouts.delete(matchId);
       }
@@ -377,6 +486,9 @@ export class BetService {
    * @param matchId - The ID of the match to cancel finalization for
    */
   cancelFinalization(matchId: string): void {
+    logger.info(
+      `Canceling scheduled finalization for match ${logger.cyan(matchId)}`
+    );
     const timeout = this.finalizationTimeouts.get(matchId);
     if (timeout) {
       clearTimeout(timeout);

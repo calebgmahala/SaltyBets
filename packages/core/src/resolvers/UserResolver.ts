@@ -111,9 +111,12 @@ export class UserResolver {
    */
   @Authorized()
   @Query(() => User, { nullable: true })
-  async user(@Arg("id") id: string): Promise<User | null> {
+  async user(
+    @Ctx() { user }: Context,
+    @Arg("id", { nullable: true }) id?: string
+  ): Promise<User | null> {
     logger.debug(`Fetching user by ID ${logger.cyan(id)}`);
-    const foundUser = await this.userRepository.findOne({ where: { id } });
+    const foundUser = await this.userRepository.findOne({ where: { id: id ?? user.id } });
     if (!foundUser) {
       logger.warn(`User not found for ID ${logger.cyan(id)}`);
     }

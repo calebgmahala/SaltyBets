@@ -131,7 +131,14 @@ export class MatchResolver {
       "and process payouts before creating a new one. " +
       "Requires ADMIN or PAYOUT_MANAGER permissions.",
   })
-  async createMatch(): Promise<Match> {
+  async createMatch(
+    @Arg("winner", {
+      nullable: true,
+      description:
+        "The winner of the fight. (This should only be added in the event of a mismatch)",
+    })
+    winner?: FighterColor
+  ): Promise<Match> {
     logger.info("Creating new match");
     const { data, hash } = await this.saltyBoyService.getCurrentMatch();
 
@@ -154,7 +161,7 @@ export class MatchResolver {
           currentMatch.id
         )} before creating new match`
       );
-      await this.endMatch(currentMatch.id);
+      await this.endMatch(currentMatch.id, winner);
     }
 
     logger.debug(`Creating match with hash ${logger.cyan(hash)}`);
@@ -196,7 +203,13 @@ export class MatchResolver {
   })
   async endMatch(
     @Arg("matchId", { description: "The ID of the match to end" })
-    matchId: string
+    matchId: string,
+    @Arg("winner", {
+      nullable: true,
+      description:
+        "The winner of the fight. (This should only be added in the event of a mismatch)",
+    })
+    winner?: FighterColor
   ): Promise<Match> {
     logger.info(`Ending match ${logger.cyan(matchId)}`);
     const match = await this.matchRepository.findOne({
@@ -212,7 +225,7 @@ export class MatchResolver {
       throw new Error("Match has already been concluded");
     }
 
-    let data: SaltyBoyMatch;
+    let data: SaltyBoyMatch | undefined;
     let hash: string;
 
     // Get latest match data from Salty Boy
@@ -240,20 +253,34 @@ export class MatchResolver {
       // If we still can't match the hashes after crawling, something is wrong
       // This can happen if the Salty Boy API hasn't updated yet or if there's a sync issue
       if (!this.saltyBoyService.compareMatchHashes(hash, matchId)) {
-        logger.error(
+        if (!winner) {
+          logger.error(
+            `Latest match hash ${logger.cyan(
+              hash
+            )} does not match match ID ${logger.cyan(matchId)}`
+          );
+          throw new Error(
+            "Latest match hash does not match match ID. Please provide a winner to end this match manually"
+          );
+        }
+        // Clear data and hash since they don't match our match ID and we're using a manual winner
+        data = undefined;
+        hash = undefined;
+        logger.warn(
           `Latest match hash ${logger.cyan(
             hash
-          )} does not match match ID ${logger.cyan(matchId)}`
+          )} does not match match ID ${logger.cyan(
+            matchId
+          )}. Using manually specified winner`
         );
-        throw new Error("latest match hash does not match match ID");
       }
     }
 
     // Update match winner
     logger.debug(`Determining winner for match ${logger.cyan(matchId)}`);
-    const winnerColor = this.getWinnerColor(match, data.winner);
+    const winnerColor = data ? this.getWinnerColor(match, data.winner) : winner;
     match.winner = winnerColor;
-    match.externalId = data.id;
+    match.externalId = data?.id;
 
     await this.matchRepository.save(match);
     logger.success(

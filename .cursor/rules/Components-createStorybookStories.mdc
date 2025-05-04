@@ -1,0 +1,6 @@
+---
+description: 
+globs: packages/components/*
+alwaysApply: false
+---
+- Always look to build or update storybook stories for components that we build or update

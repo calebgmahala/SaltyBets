@@ -73,7 +73,12 @@ type Mutation {
   """
   Create a new match by fetching the current match from the Salty Boy API. This will automatically end any existing match (via endMatch mutation) and process payouts before creating a new one. Requires ADMIN or PAYOUT_MANAGER permissions.
   """
-  createMatch: Match!
+  createMatch(
+    """
+    The winner of the fight. (This should only be added in the event of a mismatch)
+    """
+    winner: String
+  ): Match!
   createUser(input: CreateUserInputDto!): User!
   deleteUser(id: String!): Boolean!
 
@@ -83,6 +88,11 @@ type Mutation {
   endMatch(
     """The ID of the match to end"""
     matchId: String!
+
+    """
+    The winner of the fight. (This should only be added in the event of a mismatch)
+    """
+    winner: String
   ): Match!
   finalizeBets(matchId: String!): Boolean!
   login(password: String!, username: String!): String!
@@ -107,7 +117,7 @@ type Query {
   getCurrentMatch: Match
   getMatchTotals: MatchTotalsDto!
   getMyBet: Bet
-  user(id: String!): User
+  user(id: String): User
   users: [User!]!
 }
 

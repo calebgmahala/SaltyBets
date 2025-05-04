@@ -53,20 +53,33 @@ export class SaltyBoyService {
     return result;
   }
 
-  private getLatestMatchKey(): string {
+  /**
+   * Returns the Redis key used to store the latest Salty Boy match ID.
+   * @returns {string} The Redis key for the latest Salty Boy match ID
+   */
+  private getLatestSaltyBoyMatchKey(): string {
     return "match:latest:id";
   }
 
-  async getLatestMatchId(): Promise<string | null> {
-    logger.debug("Fetching latest match ID from Redis");
-    const matchId = await this.redis.getClient().get(this.getLatestMatchKey());
-    logger.debug(`Latest match ID: ${matchId ? logger.cyan(matchId) : "none"}`);
-    return matchId;
+  /**
+   * Fetches the latest Salty Boy match ID from Redis.
+   * @returns {Promise<number | null>} The latest match ID or null if not found
+   */
+  async getLatestSaltyBoyMatchId(): Promise<number | null> {
+    logger.debug("Fetching latest Salty Boy match ID from Redis");
+    const matchId = await this.redis.getClient().get(this.getLatestSaltyBoyMatchKey());
+    logger.debug(`Latest Salty Boy match ID: ${matchId ? logger.cyan(matchId) : "none"}`);
+    return matchId ? parseInt(matchId) : null;
   }
 
-  async setLatestMatchId(matchId: string): Promise<void> {
-    logger.debug(`Setting latest match ID to ${logger.cyan(matchId)}`);
-    await this.redis.getClient().set(this.getLatestMatchKey(), matchId);
+  /**
+   * Sets the latest Salty Boy match ID in Redis.
+   * @param {string} matchId - The match ID to set as the latest
+   * @returns {Promise<void>}
+   */
+  async setLatestSaltyBoyMatchId(matchId: string): Promise<void> {
+    logger.debug(`Setting latest Salty Boy match ID to ${logger.cyan(matchId)}`);
+    await this.redis.getClient().set(this.getLatestSaltyBoyMatchKey(), matchId);
   }
 
   async getMatchById(matchId: string): Promise<SaltyBoyMatch> {
@@ -173,7 +186,7 @@ export class SaltyBoyService {
         )}`
       );
 
-      await this.setLatestMatchId(latestMatch.id.toString());
+      await this.setLatestSaltyBoyMatchId(latestMatch.id.toString());
 
       return {
         data: latestMatch,
@@ -223,13 +236,14 @@ export class SaltyBoyService {
   } | null> {
     logger.debug("Fetching next latest match");
     try {
-      const latestMatchId = await this.getLatestMatchId();
+      let latestMatchId = await this.getLatestSaltyBoyMatchId();
       if (!latestMatchId) {
         logger.warn("No latest match ID found");
-        return null;
+        const latestCrawledMatch = await this.crawlLatestMatch();
+        latestMatchId = latestCrawledMatch?.data.id;
       }
 
-      const nextMatchId = parseInt(latestMatchId) + 1;
+      const nextMatchId = latestMatchId + 1;
       logger.debug(`Fetching match with ID ${logger.cyan(nextMatchId)}`);
 
       const response = await axios.get<SaltyBoyMatch>(
