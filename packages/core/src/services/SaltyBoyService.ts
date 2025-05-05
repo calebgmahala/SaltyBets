@@ -106,6 +106,13 @@ export class SaltyBoyService {
         `${this.baseUrl}/current_match_info/`
       );
       const { fighter_blue_info, fighter_red_info, updated_at } = response.data;
+      // ============================================
+      // Validate fighter info presence
+      // ============================================
+      if (!fighter_blue_info || !fighter_red_info) {
+        logger.error("Missing fighter info in Salty Boy API response, most likely the match is an exhibition match");
+        throw new Error("Current match data is missing fighter information");
+      }
       const actualHash = this.createMatchHash(
         fighter_blue_info.id,
         fighter_red_info.id,
@@ -121,7 +128,7 @@ export class SaltyBoyService {
       return { data: response.data, hash: actualHash };
     } catch (error) {
       logger.error("Error fetching current match:", error);
-      throw new Error("Failed to fetch current match from Salty Boy API");
+      throw new Error("Failed to fetch current match from Salty Boy API. The match may be an exhibition match.");
     }
   }
 
@@ -264,7 +271,7 @@ export class SaltyBoyService {
         hash,
       };
     } catch (error) {
-      logger.error("Error getting next match:", error);
+      logger.error("Latest match not found, or error fetching next match:", error);
       return null;
     }
   }

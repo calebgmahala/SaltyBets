@@ -1,40 +1,47 @@
 import "reflect-metadata";
 import express from "express";
 import cors from "cors";
-import { ApolloServer } from "@apollo/server";
 import { expressMiddleware } from "@apollo/server/express4";
 import { createServer } from "./server";
 import { getContextFromRequest } from "./middleware/auth";
+import { logger } from "./utils/logger";
 
+/**
+ * Starts the Express server, sets up middleware, and attaches Apollo Server.
+ * @returns {Promise<void>} Resolves when the server is started.
+ */
 async function start() {
   const { server, pubSub } = await createServer();
 
   const app = express();
 
-  // Enable CORS for your frontend
-  app.use(cors({
-    origin: "http://localhost:3001",
-    credentials: true,
-  }));
+  // ===========================================
+  // Apollo GraphQL Middleware
+  // ===========================================
 
-  // Parse JSON bodies
-  app.use(express.json());
-
-  // Attach Apollo middleware
   await server.start();
   app.use(
     "/graphql",
+    cors({
+      origin: "http://localhost:3000",
+      credentials: true,
+    }),
+    express.json(),
     expressMiddleware(server, {
       context: async ({ req }) => getContextFromRequest(req, pubSub),
     })
   );
 
+  // ===========================================
+  // Start Server
+  // ===========================================
+
   app.listen(4000, () => {
-    console.log("🚀 Server ready at http://localhost:4000/graphql");
+    logger.success(`🚀 Server ready at ${logger.cyan("http://localhost:4000/graphql")}`);
   });
 }
 
 start().catch((error) => {
-  console.error("Failed to start server:", error);
+  logger.error("Failed to start server:", error);
   process.exit(1);
 });

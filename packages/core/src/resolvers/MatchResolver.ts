@@ -241,6 +241,7 @@ export class MatchResolver {
           hash
         )}, attempting to crawl latest match`
       );
+      const currentCrawledMatchId = await this.saltyBoyService.getLatestSaltyBoyMatchId();
       const latestCrawledMatch = await this.saltyBoyService.crawlLatestMatch();
       if (!latestCrawledMatch) {
         logger.error(
@@ -259,6 +260,9 @@ export class MatchResolver {
               hash
             )} does not match match ID ${logger.cyan(matchId)}`
           );
+          logger.debug(`Resetting latest match ID to ${logger.cyan(currentCrawledMatchId)}`);
+          // Reset latest match ID to null since we can't verify the match
+          await this.saltyBoyService.setLatestSaltyBoyMatchId(currentCrawledMatchId.toString());
           throw new Error(
             "Latest match hash does not match match ID. Please provide a winner to end this match manually"
           );
@@ -275,6 +279,9 @@ export class MatchResolver {
         );
       }
     }
+
+    logger.debug(`Setting latest match ID to ${logger.cyan(data.id)}`);
+    this.saltyBoyService.setLatestSaltyBoyMatchId(nextLatestMatch.data.id.toString());
 
     // Update match winner
     logger.debug(`Determining winner for match ${logger.cyan(matchId)}`);

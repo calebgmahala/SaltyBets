@@ -72,10 +72,6 @@ export class BetService {
     return `bet:active:total:${color}`;
   }
 
-  private getUserBalanceKey(userId: string): string {
-    return `user:balance:${userId}`;
-  }
-
   // ============= Bet Operations =============
   /**
    * Places a bet for a user on a specific fighter color
@@ -83,7 +79,7 @@ export class BetService {
    * @param amount - The amount to bet
    * @param fighterColor - The fighter color to bet on
    * @returns Promise<boolean> - True if bet was placed successfully
-   * @throws Error if bet amount is invalid or user has insufficient balance
+   * @throws Error if bet amount is invalid, user has insufficient balance, no match is active, or bets are finalized
    */
   async placeBet(
     user: User,
@@ -93,6 +89,27 @@ export class BetService {
     logger.debug(
       `Attempting to place bet for user ${logger.cyan(user.id)}: amount=${logger.cyan(amount)}, color=${logger.cyan(fighterColor)}`
     );
+
+    // ============================================
+    // Match Status Validation
+    // ============================================
+    /**
+     * Fetch the current match and ensure betting is allowed.
+     * Throws if there is no current match or if bets are finalized (winner is set).
+     */
+    const currentMatch = await this.matchRepository.findOne({ where: {}, order: { createdAt: "DESC" } });
+    if (!currentMatch) {
+      logger.warn(`No current match found. Cannot place bet for user ${logger.cyan(user.id)}`);
+      throw new Error("No current match available for betting");
+    }
+    if (currentMatch.winner !== null && currentMatch.winner !== undefined) {
+      logger.warn(`Bets are finalized for match ${logger.cyan(currentMatch.id)}. Cannot place bet for user ${logger.cyan(user.id)}`);
+      throw new Error("Bets are finalized for the current match");
+    }
+
+    // ============================================
+    // Bet Amount and Balance Validation
+    // ============================================
     // Validate bet amount (must be in increments of 5 or 25 cents)
     if (!this.isValidBetAmount(amount)) {
       logger.warn(
@@ -103,16 +120,28 @@ export class BetService {
       );
     }
 
+    // Check available balance: DB balance - in-progress bets >= amount
     const client = this.redis.getClient();
-    const balanceKey = this.getUserBalanceKey(user.id);
     const betKey = this.getUserBetKey(user.id);
     const totalKey = this.getMatchTotalKey(fighterColor);
+
+    // Fetch user's DB balance
+    const dbBalance = user.balance;
+    // Fetch in-progress bet from Redis
+    const betData = await client.hgetall(betKey);
+    const inProgressBet = betData && betData.amount ? parseFloat(betData.amount) : 0;
+    const available = dbBalance - inProgressBet;
+    if (available < amount) {
+      logger.warn(
+        `User ${logger.cyan(user.id)} has insufficient available balance. DB balance: ${logger.cyan(dbBalance)}, in-progress: ${logger.cyan(inProgressBet)}, requested: ${logger.cyan(amount)}`
+      );
+      throw new Error("Insufficient available balance");
+    }
 
     try {
       const result = await client.evalsha(
         (await client.script("LOAD", this.placeBetScript)) as string,
-        3, // number of keys
-        balanceKey,
+        2, // number of keys
         betKey,
         totalKey,
         amount.toString(),
@@ -168,14 +197,12 @@ export class BetService {
     }
 
     const client = this.redis.getClient();
-    const balanceKey = this.getUserBalanceKey(user.id);
     const betKey = this.getUserBetKey(user.id);
 
     try {
       const result = await client.evalsha(
         (await client.script("LOAD", this.cancelBetScript)) as string,
-        2, // number of keys
-        balanceKey,
+        1, // number of keys
         betKey,
         amount.toString()
       );
@@ -267,20 +294,12 @@ export class BetService {
         );
       }
       // Clear Redis data
-      const balanceKeys = bets.map((bet) => this.getUserBalanceKey(bet.userId));
-      // Only perform Redis deletions if we have keys to delete
       const redisDeletions = [];
       if (keys.length > 0) {
         logger.debug(
           `Deleting ${logger.cyan(keys.length)} bet keys from Redis for match ${logger.cyan(matchId)}`
         );
         redisDeletions.push(this.redis.getClient().del(...keys));
-      }
-      if (balanceKeys.length > 0) {
-        logger.debug(
-          `Deleting ${logger.cyan(balanceKeys.length)} balance keys from Redis for match ${logger.cyan(matchId)}`
-        );
-        redisDeletions.push(this.redis.getClient().del(...balanceKeys));
       }
       // Always clear the match total keys
       logger.debug(

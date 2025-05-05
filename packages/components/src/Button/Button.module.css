@@ -1,0 +1,25 @@
+.button {
+  padding: 8px 16px;
+  border-radius: 4px;
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  transition: filter 0.15s, opacity 0.15s;
+}
+
+.button--blue {
+  background: #007bff;
+}
+.button--red {
+  background: #dc3545;
+}
+.button--green {
+  background: #28a745;
+}
+
+.button:hover {
+  filter: brightness(0.92);
+}
+.button:active {
+  filter: brightness(0.85);
+} 

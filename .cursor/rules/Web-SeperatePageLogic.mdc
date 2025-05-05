@@ -1,0 +1,10 @@
+---
+description: 
+globs: packages/web/**
+alwaysApply: false
+---
+- Always move queries into their own hooks alongside the page / component that uses them
+- - File naming Format should be useGqlXxxx
+- Always move buisness logic into hooks when updating components and pages
+- Try and keep hooks specific to one idea, we don't want to have one massive hook
+- If effects, memo's, and callbacks are complicated or could be consolidated into a hook for easier readability and file structure, move them into their own hooks

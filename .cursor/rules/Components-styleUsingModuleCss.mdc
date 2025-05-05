@@ -1,0 +1,6 @@
+---
+description: 
+globs: packages/components/**
+alwaysApply: false
+---
+- Always use module.css files for styling components

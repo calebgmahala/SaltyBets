@@ -2,11 +2,18 @@ import { AppDataSource } from "../data-source";
 import { User } from "../entities/User";
 import { Context, Subscriptions } from "../types/Context";
 import { AuthorizationService } from "../services/AuthorizationService";
-import { IncomingMessage } from "http";
+import { Request } from "express";
 import { PubSub } from "@graphql-yoga/subscription";
+import { logger } from "../utils/logger";
 
+/**
+ * Builds the GraphQL context from the Express request and PubSub instance.
+ * @param {Request} req - The Express request object.
+ * @param {PubSub<Subscriptions>} pubSub - The PubSub instance for subscriptions.
+ * @returns {Promise<Context>} The constructed context object.
+ */
 export async function getContextFromRequest(
-  req: IncomingMessage,
+  req: Request,
   pubSub: PubSub<Subscriptions>
 ): Promise<Context> {
   const context: Context = { user: null, req, pubSub };
@@ -37,7 +44,7 @@ export async function getContextFromRequest(
       context.user = user;
     }
   } catch (error) {
-    console.error("Error authenticating user:", error);
+    logger.error("Error authenticating user:", error);
   }
 
   return context;

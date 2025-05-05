@@ -1,0 +1,18 @@
+.body {
+  font-size: 1rem;
+  color: #222;
+}
+.small {
+  font-size: 0.875rem;
+  color: #444;
+}
+.muted {
+  color: #888;
+}
+.bold {
+  font-weight: 600;
+}
+.error {
+  color: #d32f2f;
+  font-weight: 500;
+} 

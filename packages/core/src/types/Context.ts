@@ -1,7 +1,6 @@
-import { IncomingMessage } from "http";
+import { Request } from "express";
 import { User } from "../entities/User";
 import { PubSub } from "@graphql-yoga/subscription";
-import { FighterColor } from "./FighterColor";
 import { MatchTotalsDto } from "../dtos/MatchTotalsDto";
 
 export enum SubscriptionKeys {
@@ -13,8 +12,14 @@ export interface Subscriptions {
   [key: string]: [any];
 }
 
+/**
+ * The GraphQL context shared across resolvers.
+ * @property {User | null} user - The authenticated user, if any.
+ * @property {Request} req - The Express request object.
+ * @property {PubSub<Subscriptions>} pubSub - The PubSub instance for subscriptions.
+ */
 export interface Context {
   user: User | null;
-  req: IncomingMessage;
+  req: Request;
   pubSub: PubSub<Subscriptions>;
 }

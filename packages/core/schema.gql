@@ -99,6 +99,7 @@ type Mutation {
   logout: Boolean!
   placeBet(amount: Float!, fighterColor: String!): Boolean!
   updateUser(id: String, input: UpdateUserInputDto!): User!
+  updateUserBalance(amount: Float!, username: String!): User!
 }
 
 type PeriodStatsDto {

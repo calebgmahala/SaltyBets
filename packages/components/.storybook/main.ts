@@ -1,8 +1,13 @@
+// Storybook main configuration for @saltybets/components
 export default {
-  stories: ['../*.stories.@(js|jsx|ts|tsx)'],
-  addons: ['@storybook/addon-essentials'],
+  // Updated glob to match stories in src subdirectories
+  stories: ['../src/**/*.stories.@(js|jsx|ts|tsx)'],
+  addons: [
+    '@storybook/addon-essentials',
+    '@storybook/addon-docs',
+  ],
   framework: {
-    name: '@storybook/react',
+    name: '@storybook/react-vite',
     options: {},
   },
   docs: {

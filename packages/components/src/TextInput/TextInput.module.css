@@ -1,0 +1,23 @@
+.container {
+  margin-bottom: 12px;
+}
+.label {
+  display: block;
+  margin-bottom: 4px;
+  font-weight: 500;
+}
+.input {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 16px;
+}
+.inputError {
+  border: 1px solid #dc3545;
+}
+.error {
+  color: #dc3545;
+  font-size: 12px;
+  margin-top: 2px;
+} 

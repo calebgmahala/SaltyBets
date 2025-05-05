@@ -1,59 +1,50 @@
 "use client";
-import { useState } from "react";
-import { useMutation, gql } from "@apollo/client";
-import Cookies from "js-cookie";
-import { useRouter } from "next/navigation";
-import { Button } from '@saltybets/components';
-
-/**
- * GraphQL mutation for user login.
- */
-const LOGIN_MUTATION = gql`
-  mutation Login($username: String!, $password: String!) {
-    login(username: $username, password: $password)
-  }
-`;
+import { Button, Heading, Text, CardSection, TextInput } from '@saltybets/components';
+import { useLogin } from "./useLogin";
 
 /**
  * Login page for Salty Bets. Mobile-first layout and login logic.
  * @returns {React.ReactElement} The rendered login page.
  */
 export default function LoginPage(): React.ReactElement {
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
-  const router = useRouter();
-  const [login, { loading }] = useMutation(LOGIN_MUTATION);
-
-  /**
-   * Handles form submission for login.
-   * @param {React.FormEvent} e - The form event.
-   */
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError("");
-    try {
-      const { data } = await login({ variables: { username, password } });
-      if (data?.login) {
-        Cookies.set("token", data.login, { expires: 7 });
-        router.push("/dashboard");
-      } else {
-        setError("Invalid credentials");
-      }
-    } catch (err) {
-      setError("Login failed");
-    }
-  };
+  const {
+    username,
+    setUsername,
+    password,
+    setPassword,
+    error,
+    loading,
+    handleSubmit,
+  } = useLogin();
 
   return (
     <main style={{ minHeight: '100dvh', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', padding: 16 }}>
-      <h2 style={{ marginBottom: 24 }}>Login</h2>
-      <form onSubmit={handleSubmit} style={{ width: '100%', maxWidth: 320, display: 'flex', flexDirection: 'column', gap: 16 }}>
-        <input type="text" placeholder="Username" value={username} onChange={e => setUsername(e.target.value)} style={{ padding: 12, borderRadius: 6, border: '1px solid #ccc', fontSize: 16 }} />
-        <input type="password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} style={{ padding: 12, borderRadius: 6, border: '1px solid #ccc', fontSize: 16 }} />
-        {error && <div style={{ color: 'red', fontSize: 14 }}>{error}</div>}
-        <Button type="submit" disabled={loading}>{loading ? "Logging in..." : "Login"}</Button>
-      </form>
+      <CardSection style={{ width: '100%', maxWidth: 340 }}>
+        <div style={{ marginBottom: 24 }}>
+          <Heading level={2}>Login</Heading>
+        </div>
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <TextInput
+            id="username"
+            label="Username"
+            value={username}
+            onChange={e => setUsername(e.target.value)}
+            placeholder="Username"
+            error={error && !username ? error : undefined}
+          />
+          <TextInput
+            id="password"
+            label="Password"
+            value={password}
+            onChange={e => setPassword(e.target.value)}
+            placeholder="Password"
+            error={error && !password ? error : undefined}
+            type="password"
+          />
+          {error && <Text variant="error">{error}</Text>}
+          <Button type="submit" disabled={loading} variant="green">{loading ? "Logging in..." : "Login"}</Button>
+        </form>
+      </CardSection>
     </main>
   );
 } 

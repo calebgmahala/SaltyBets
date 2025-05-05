@@ -14,6 +14,7 @@ A private-party betting platform for Salty Boy matches, built with TypeORM, Type
 - [Setup & Configuration](#setup--configuration)
 - [Development & Scripts](#development--scripts)
 - [Extending & Customization](#extending--customization)
+- [Limitations & Roadmap](#limitations--roadmap)
 
 ---
 
@@ -147,6 +148,18 @@ The backend exposes a **GraphQL API** with the following main resolvers:
 - **Add services** in `src/services/`
 - **Update types/enums** in `src/types/`
 - **Logger**: Use the provided logger in `src/utils/logger` for all logging (see code for usage)
+
+---
+
+## Limitations & Roadmap
+
+### Exhibition Matches
+- **Not Supported:** Exhibition matches (matches without fighters) are currently not supported by the system.
+- **Planned Features:**
+  - Logging matches without fighters.
+  - Manual match ending with the ability to specify the winning side.
+
+If you need to handle exhibition matches or matches without fighters, please note that this functionality will require future development.
 
 ---
 

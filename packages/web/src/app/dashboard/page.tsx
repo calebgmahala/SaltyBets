@@ -1,10 +1,11 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect } from "react";
 import Cookies from "js-cookie";
 import { useRouter } from "next/navigation";
-import { useQuery, gql, useMutation } from "@apollo/client";
-import { Button } from '@saltybets/components';
+import { useQuery, gql } from "@apollo/client";
+import { Button, Heading, Text, CardSection } from '@saltybets/components';
 import Link from "next/link";
+import { useDashboard } from "./useDashboard";
 
 // ============================================
 // GraphQL Queries & Subscriptions
@@ -60,31 +61,13 @@ const GET_MY_USER = gql`
 `;
 
 /**
- * Mutation for placing a bet.
- */
-const PLACE_BET = gql`
-  mutation PlaceBet($amount: Float!, $fighterColor: String!) {
-    placeBet(amount: $amount, fighterColor: $fighterColor)
-  }
-`;
-
-/**
- * Mutation for canceling a bet.
- */
-const CANCEL_BET = gql`
-  mutation CancelBet($amount: Float!) {
-    cancelBet(amount: $amount)
-  }
-`;
-
-/**
  * Dashboard page for Salty Bets. Mobile-first layout for current match and betting actions.
  * Redirects to /login if not authenticated. Fetches match, bet totals, and user role.
  * @returns {React.ReactElement} The rendered dashboard page.
  */
 export default function DashboardPage(): React.ReactElement {
   const router = useRouter();
-  useEffect(() => {
+  useLayoutEffect(() => {
     const token = Cookies.get("token");
     if (!token) {
       router.replace("/login");
@@ -115,101 +98,66 @@ export default function DashboardPage(): React.ReactElement {
   const totals = totalsData?.getMatchTotals;
   const user = userData?.user;
 
-  // Betting state and actions
-  const [betAmount, setBetAmount] = useState(10);
-  const [betError, setBetError] = useState("");
-  const [betSuccess, setBetSuccess] = useState("");
-  const [placeBet, { loading: placingBet }] = useMutation(PLACE_BET);
-  const [cancelBet, { loading: cancelingBet }] = useMutation(CANCEL_BET);
-
-  /**
-   * Handles placing a bet.
-   * @param {"RED"|"BLUE"} color - The fighter color.
-   */
-  const handlePlaceBet = async (color: "RED" | "BLUE") => {
-    setBetError("");
-    setBetSuccess("");
-    try {
-      const { data } = await placeBet({ variables: { amount: betAmount, fighterColor: color } });
-      if (data?.placeBet) {
-        setBetSuccess(`Bet placed on ${color}`);
-      } else {
-        setBetError("Failed to place bet");
-      }
-    } catch {
-      setBetError("Error placing bet");
-    }
-  };
-
-  /**
-   * Handles canceling a bet.
-   */
-  const handleCancelBet = async () => {
-    setBetError("");
-    setBetSuccess("");
-    try {
-      const { data } = await cancelBet({ variables: { amount: betAmount } });
-      if (data?.cancelBet) {
-        setBetSuccess("Bet canceled");
-      } else {
-        setBetError("Failed to cancel bet");
-      }
-    } catch {
-      setBetError("Error canceling bet");
-    }
-  };
-
-  /**
-   * Handles logout by removing the JWT token and redirecting to /login.
-   */
-  const handleLogout = () => {
-    Cookies.remove("token");
-    router.replace("/login");
-  };
+  const {
+    betError,
+    betSuccess,
+    placingBet,
+    cancelingBet,
+    handlePlaceBet,
+    handleCancelBet,
+    handleLogout,
+  } = useDashboard();
 
   return (
     <main style={{ minHeight: '100dvh', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: 16 }}>
       <div style={{ width: '100%', display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
-        <Button onClick={handleLogout} style={{ background: '#dc3545' }}>Logout</Button>
+        <Button onClick={handleLogout} variant="red">Logout</Button>
       </div>
-      <h2 style={{ marginBottom: 16 }}>Current Match</h2>
+      <div style={{ marginBottom: 16 }}>
+        <Heading level={2}>Current Match</Heading>
+      </div>
       {match ? (
-        <section style={{ width: '100%', maxWidth: 400, background: '#f8f9fa', borderRadius: 8, padding: 16, marginBottom: 24 }}>
+        <CardSection style={{ width: '100%', maxWidth: 400 }}>
           <div style={{ marginBottom: 12 }}>
-            <strong>{match.fighterRed.name}</strong> vs <strong>{match.fighterBlue.name}</strong>
+            <Text variant="bold">{match.fighterRed.name}</Text> vs <Text variant="bold">{match.fighterBlue.name}</Text>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-            <span>Red Bets: ${totals?.red ?? match.totalRedBets}</span>
-            <span>Blue Bets: ${totals?.blue ?? match.totalBlueBets}</span>
+            <Text variant="body">Red Bets: ${totals?.red ?? match.totalRedBets}</Text>
+            <Text variant="body">Blue Bets: ${totals?.blue ?? match.totalBlueBets}</Text>
           </div>
-          <div style={{ fontSize: 14, color: '#888', marginBottom: 8 }}>
-            Winner: {match.winner || 'TBD'}
-          </div>
-        </section>
+          <span style={{ color: '#555', marginBottom: 8 }}>
+            <Text variant="small" className="winner">
+              Winner: {match.winner || 'TBD'}
+            </Text>
+          </span>
+        </CardSection>
       ) : (
-        <div>Loading match...</div>
+        <Text>Loading match...</Text>
       )}
       {user && (
-        <div style={{ fontSize: 14, color: '#888', marginBottom: 16 }}>Logged in as: {user.username} ({user.securityLevel})</div>
+        <span style={{ color: '#222', marginBottom: 16, display: 'block' }}>
+          <Text variant="small">Logged in as: {user.username} ({user.securityLevel})</Text>
+        </span>
       )}
       {/* Betting actions */}
       {user && (
-        <section style={{ width: '100%', maxWidth: 400, marginBottom: 24 }}>
+        <CardSection style={{ width: '100%', maxWidth: 400 }}>
           <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-            <input
-              type="number"
-              min={1}
-              value={betAmount}
-              onChange={e => setBetAmount(Number(e.target.value))}
-              style={{ flex: 1, padding: 8, borderRadius: 4, border: '1px solid #ccc', fontSize: 16 }}
-            />
-            <Button onClick={() => handlePlaceBet("RED") } disabled={placingBet}>Bet Red</Button>
-            <Button onClick={() => handlePlaceBet("BLUE") } disabled={placingBet}>Bet Blue</Button>
+            <Button onClick={() => handlePlaceBet("RED") } variant="red" disabled={placingBet}>Bet Red (5¢)</Button>
+            <Button onClick={() => handlePlaceBet("BLUE") } variant="blue" disabled={placingBet}>Bet Blue (5¢)</Button>
           </div>
-          <Button onClick={handleCancelBet} disabled={cancelingBet} style={{ width: '100%' }}>Cancel Bet</Button>
-          {betError && <div style={{ color: 'red', fontSize: 14, marginTop: 8 }}>{betError}</div>}
-          {betSuccess && <div style={{ color: 'green', fontSize: 14, marginTop: 8 }}>{betSuccess}</div>}
-        </section>
+          <Button onClick={handleCancelBet} variant="red" disabled={cancelingBet} style={{ width: '100%' }}>Cancel Bet</Button>
+          {betError && (
+            <span style={{ marginTop: 8, display: 'block' }}>
+              <Text variant="error">{betError}</Text>
+            </span>
+          )}
+          {betSuccess && (
+            <span style={{ color: 'green', marginTop: 8, display: 'block' }}>
+              <Text variant="bold">{betSuccess}</Text>
+            </span>
+          )}
+        </CardSection>
       )}
       {/* Admin/Manager features */}
       {user && (user.securityLevel === "ADMIN" || user.securityLevel === "PAYOUT_MANAGER") && (

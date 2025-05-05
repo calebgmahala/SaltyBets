@@ -1,11 +1,9 @@
 -- Cancel bet script
--- KEYS[1] = balanceKey
--- KEYS[2] = betKey
+-- KEYS[1] = betKey
 -- ARGV[1] = amount
 
 -- Get current values
-local balance = tonumber(redis.call('GET', KEYS[1]) or '0')
-local bet = redis.call('HGETALL', KEYS[2])
+local bet = redis.call('HGETALL', KEYS[1])
 
 -- Validate bet exists
 if #bet == 0 then
@@ -30,16 +28,12 @@ end
 
 -- Calculate new values
 local newBetAmount = currentBetAmount - tonumber(ARGV[1])
-local newBalance = balance + tonumber(ARGV[1])
-
--- Update balance
-redis.call('SET', KEYS[1], newBalance)
 
 -- Update or delete bet
 if newBetAmount == 0 then
-  redis.call('DEL', KEYS[2])
+  redis.call('DEL', KEYS[1])
 else
-  redis.call('HSET', KEYS[2], 'amount', newBetAmount)
+  redis.call('HSET', KEYS[1], 'amount', newBetAmount)
 end
 
 -- Update total

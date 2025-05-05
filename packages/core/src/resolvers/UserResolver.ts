@@ -334,4 +334,41 @@ export class UserResolver {
       return false;
     }
   }
+
+  /**
+   * Updates a user's balance by a specified amount. Admin only.
+   *
+   * @param {string} username - The username (alias) of the user whose balance will be updated
+   * @param {number} amount - The amount to add (or subtract) from the user's balance
+   * @param {Context} ctx - The request context
+   * @returns {Promise<User>} The updated user
+   * @throws {Error} If not admin or user not found
+   */
+  @Authorized(SecurityLevel.ADMIN)
+  @Mutation(() => User)
+  async updateUserBalance(
+    @Arg("username") username: string,
+    @Arg("amount") amount: number,
+    @Ctx() { user }: Context
+  ): Promise<User> {
+    logger.info(
+      `Admin ${logger.cyan(user.id)} updating balance for user ${logger.cyan(username)} by ${logger.cyan(amount)}`
+    );
+
+    const targetUser = await this.userRepository.findOne({ where: { username } });
+    if (!targetUser) {
+      logger.error(`User not found for balance update: ${logger.cyan(username)}`);
+      throw new Error("User not found");
+    }
+
+    // Support true floats for balance (fractional cents allowed)
+    const currentBalance = parseFloat(targetUser.balance as any);
+    targetUser.balance = currentBalance + amount;
+    const updatedUser = await this.userRepository.save(targetUser);
+
+    logger.success(
+      `Balance for user ${logger.cyan(username)} updated by admin ${logger.cyan(user.id)}. New balance: ${logger.cyan(updatedUser.balance)}`
+    );
+    return updatedUser;
+  }
 }
